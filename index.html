@@ -306,15 +306,16 @@
             west: 'mesono-four.mp3'
         };
         
-        // Create rings (fewer for mobile)
+        // Create rings (fewer for mobile, but larger)
         function createRings() {
             const ringsContainer = document.getElementById('rings');
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 8; i++) {
                 const ring = document.createElement('div');
                 ring.className = 'ring';
-                ring.style.width = `${50 + i * 45}px`;
-                ring.style.height = `${50 + i * 45}px`;
-                ring.style.borderColor = `rgba(255, 255, 255, ${0.1 + i * 0.02})`;
+                // Make rings extend well beyond the container
+                ring.style.width = `${50 + i * 60}px`;
+                ring.style.height = `${50 + i * 60}px`;
+                ring.style.borderColor = `rgba(255, 255, 255, ${0.15 - i * 0.015})`;
                 ring.id = `ring-${i}`;
                 ringsContainer.appendChild(ring);
             }
@@ -322,7 +323,7 @@
         
         // Calculate volumes based on orb position
         function calculateVolumes(x, y) {
-            const radius = 100;
+            const radius = 80; // Adjusted for smaller container
             const maxDistance = radius * Math.sqrt(2);
             
             const distances = {
@@ -352,18 +353,29 @@
         function updateVisuals() {
             const movement = Math.sqrt(orbPos.x * orbPos.x + orbPos.y * orbPos.y);
             
-            // Update rings
-            for (let i = 0; i < 5; i++) {
+            // Update rings with enhanced web effect
+            for (let i = 0; i < 8; i++) {
                 const ring = document.getElementById(`ring-${i}`);
                 if (ring) {
-                    const offsetMultiplier = (i + 1) * 0.08;
+                    // Increase offset multiplier for more dramatic movement
+                    const offsetMultiplier = (i + 1) * 0.15;
                     const offsetX = orbPos.x * offsetMultiplier;
                     const offsetY = orbPos.y * offsetMultiplier;
-                    const baseOpacity = 0.1 + i * 0.02;
-                    const movementOpacity = Math.min(movement / 150 * 0.2, 0.2);
+                    const baseOpacity = 0.15 - i * 0.015;
+                    const movementOpacity = Math.min(movement / 100 * 0.3, 0.3);
                     
-                    ring.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`;
+                    // Add scaling based on movement for more dynamic effect
+                    const scaleEffect = 1 + (movement / 200) * (i * 0.05);
+                    
+                    ring.style.transform = `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px)) scale(${scaleEffect})`;
                     ring.style.borderColor = `rgba(255, 255, 255, ${baseOpacity + movementOpacity})`;
+                    
+                    // Add glow effect to outer rings when moving
+                    if (i > 3 && movement > 30) {
+                        ring.style.boxShadow = `0 0 ${20 + movement * 0.2}px rgba(255, 255, 255, ${movementOpacity * 0.5})`;
+                    } else {
+                        ring.style.boxShadow = 'none';
+                    }
                 }
             }
             
@@ -371,17 +383,18 @@
             const logoGlow = 15 + movement * 0.15;
             logoImg.style.filter = `drop-shadow(0 0 ${logoGlow}px rgba(255, 255, 255, 0.6)) brightness(1.2)`;
             
-            // Update stems
+            // Update stems with enhanced glow
             Object.keys(stemVolumes).forEach(direction => {
                 const stem = document.getElementById(`stem-${direction}`);
                 if (stem) {
                     const volume = stemVolumes[direction];
-                    const size = 10 + volume * 10;
+                    const size = 8 + volume * 12;
                     
                     stem.style.width = `${size}px`;
                     stem.style.height = `${size}px`;
                     stem.style.backgroundColor = `rgba(255, 255, 255, ${0.4 + volume * 0.6})`;
-                    stem.style.boxShadow = `0 0 ${10 + volume * 20}px rgba(255, 255, 255, ${volume * 0.8})`;
+                    stem.style.boxShadow = `0 0 ${15 + volume * 30}px rgba(255, 255, 255, ${volume * 0.8})`;
+                    stem.style.transform = `translate(-50%, -50%) scale(${1 + volume * 0.3})`;
                 }
             });
         }
@@ -393,21 +406,7 @@
         function startDrag(e) {
             isDragging = true;
             e.preventDefault();
-            
-            // For mobile, start audio on initial touch (not drag)
-            if (!hasStarted && e.type === 'touchstart') {
-                hasStarted = true;
-                startPlayback();
-            }
         }
-        
-        // Also add click event for desktop and as fallback
-        orb.addEventListener('click', function() {
-            if (!hasStarted) {
-                hasStarted = true;
-                startPlayback();
-            }
-        });
         
         document.addEventListener('mousemove', drag);
         document.addEventListener('touchmove', drag);
@@ -444,14 +443,28 @@
             
             orb.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
             
+            // Calculate new volumes
             stemVolumes = calculateVolumes(x, y);
             updateVisuals();
             
+            // Debug log to see volume values
+            console.log('Volumes:', {
+                north: stemVolumes.north.toFixed(2),
+                south: stemVolumes.south.toFixed(2),
+                east: stemVolumes.east.toFixed(2),
+                west: stemVolumes.west.toFixed(2)
+            });
+            
             // Update audio volumes if playing
-            if (isPlaying) {
+            if (isPlaying && audioTracks) {
                 Object.keys(audioTracks).forEach(direction => {
                     if (audioTracks[direction]) {
-                        audioTracks[direction].volume = stemVolumes[direction];
+                        try {
+                            audioTracks[direction].volume = Math.max(0, Math.min(1, stemVolumes[direction]));
+                            console.log(`Set ${direction} volume to ${audioTracks[direction].volume}`);
+                        } catch (e) {
+                            console.error(`Failed to set volume for ${direction}:`, e);
+                        }
                     }
                 });
             }
@@ -464,20 +477,58 @@
             isDragging = false;
         }
         
-        // Simple audio control for TikTok - auto-start on drag
+        // Simple audio control for mobile devices
         function startPlayback() {
             if (isPlaying) return; // Don't start twice
+            
+            // Create an AudioContext for iOS compatibility
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext && !window.audioContext) {
+                window.audioContext = new AudioContext();
+            }
+            
             isPlaying = true;
             
-            // Simple HTML5 audio for mobile
+            // Simple HTML5 audio with iOS fixes
             Object.keys(audioFileMap).forEach(direction => {
-                const audio = new Audio(`https://raw.githubusercontent.com/scuevastx/mesonofinal/main/${audioFileMap[direction]}`);
+                const audio = new Audio();
+                audio.src = `https://raw.githubusercontent.com/scuevastx/mesonofinal/main/${audioFileMap[direction]}`;
                 audio.volume = stemVolumes[direction];
                 audio.loop = true;
-                audio.play().catch(e => console.log(`Audio play failed for ${direction}:`, e));
+                audio.crossOrigin = 'anonymous';
+                audio.setAttribute('playsinline', '');
+                audio.setAttribute('webkit-playsinline', '');
+                
+                // For iOS, we need to call play() immediately after user interaction
+                const playPromise = audio.play();
+                
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        console.log(`Audio started: ${direction}`);
+                    }).catch(error => {
+                        console.error(`Audio play failed for ${direction}:`, error);
+                        // Try to play again with muted first (iOS sometimes requires this)
+                        audio.muted = true;
+                        audio.play().then(() => {
+                            audio.muted = false;
+                            console.log(`Audio started muted then unmuted: ${direction}`);
+                        }).catch(e => {
+                            console.error(`Audio completely failed for ${direction}:`, e);
+                        });
+                    });
+                }
+                
                 audioTracks[direction] = audio;
             });
         }
+        
+        // Also add a touch handler to ensure audio starts on first touch
+        document.addEventListener('touchstart', function() {
+            if (!hasStarted && isDragging) {
+                hasStarted = true;
+                startPlayback();
+            }
+        }, { once: true });
         
         // Initialize
         createRings();
