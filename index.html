@@ -393,7 +393,21 @@
         function startDrag(e) {
             isDragging = true;
             e.preventDefault();
+            
+            // For mobile, start audio on initial touch (not drag)
+            if (!hasStarted && e.type === 'touchstart') {
+                hasStarted = true;
+                startPlayback();
+            }
         }
+        
+        // Also add click event for desktop and as fallback
+        orb.addEventListener('click', function() {
+            if (!hasStarted) {
+                hasStarted = true;
+                startPlayback();
+            }
+        });
         
         document.addEventListener('mousemove', drag);
         document.addEventListener('touchmove', drag);
@@ -419,7 +433,7 @@
             
             // Constrain to circle
             const distance = Math.sqrt(x * x + y * y);
-            const maxRadius = 110;
+            const maxRadius = 88; // Reduced by 20% from 110
             if (distance > maxRadius) {
                 x = (x / distance) * maxRadius;
                 y = (y / distance) * maxRadius;
@@ -469,5 +483,7 @@
         createRings();
         updateVisuals();
     </script>
+</body>
+</html>
 </body>
 </html>
