@@ -414,12 +414,6 @@
         function drag(e) {
             if (!isDragging) return;
             
-            // Start audio on first drag if not already started
-            if (!hasStarted) {
-                hasStarted = true;
-                startPlayback();
-            }
-            
             const rect = container.getBoundingClientRect();
             const centerX = rect.left + rect.width / 2;
             const centerY = rect.top + rect.height / 2;
@@ -432,7 +426,7 @@
             
             // Constrain to circle
             const distance = Math.sqrt(x * x + y * y);
-            const maxRadius = 88; // Reduced by 20% from 110
+            const maxRadius = 88;
             if (distance > maxRadius) {
                 x = (x / distance) * maxRadius;
                 y = (y / distance) * maxRadius;
@@ -447,24 +441,11 @@
             stemVolumes = calculateVolumes(x, y);
             updateVisuals();
             
-            // Debug log to see volume values
-            console.log('Volumes:', {
-                north: stemVolumes.north.toFixed(2),
-                south: stemVolumes.south.toFixed(2),
-                east: stemVolumes.east.toFixed(2),
-                west: stemVolumes.west.toFixed(2)
-            });
-            
-            // Update audio volumes if playing
+            // Update audio volumes
             if (isPlaying && audioTracks) {
                 Object.keys(audioTracks).forEach(direction => {
                     if (audioTracks[direction]) {
-                        try {
-                            audioTracks[direction].volume = Math.max(0, Math.min(1, stemVolumes[direction]));
-                            console.log(`Set ${direction} volume to ${audioTracks[direction].volume}`);
-                        } catch (e) {
-                            console.error(`Failed to set volume for ${direction}:`, e);
-                        }
+                        audioTracks[direction].volume = stemVolumes[direction];
                     }
                 });
             }
